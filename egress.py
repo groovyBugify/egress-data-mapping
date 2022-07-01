@@ -1,3 +1,4 @@
+#! Author: Saransh Rana;
 #! /usr/bin/python3
 
 import boto3
@@ -11,6 +12,12 @@ from dns import resolver,reversename
 import requestHandler as rh
 import csv
 import os.path
+
+def get_all_nat():
+    client = boto3.client('ec2',region_name='us-east-1')
+    response = client.describe_nat_gateways()
+    nat_id = list(map(lambda x:x['NatGatewayAddresses'][0]['NetworkInterfaceId'],response['NatGateways']))
+    return nat_id
 
 def enumerate_es_eni(eni):
     print(f"[+]Enumerating ENI: {eni}")
@@ -97,18 +104,15 @@ def cloudfront_es(ip):
             data = json.loads(r1.text)
             data_len = data['aggregations']['cs_uri_stem']['buckets']
             if len(data_len) == 0:
-                #print(f"[+]Did not find any data at cloudfront ES: {ip}")
                 return None, None
             else:
                 for key in data_len:
-                    return key['key'], key['doc_count']
-                         
+                    return key['key'], key['doc_count']                
     except Exception as em:
         print(f'[+]Exception at cloudfront_es: {em}')
         
 def send_answer(eni, ip, count):
     key, doc_count = cloudfront_es(ip)
-    # Condition if CloudFront ES finds any data in that cluster
     if doc_count != None and key != None:
         print(f'The {ip} has made calls to the following endpoints {key}, {doc_count} times')
         geoip = get_geoip_details(ip)
@@ -117,7 +121,6 @@ def send_answer(eni, ip, count):
         print()
         print(f"[+]The IP {ip} was invoked from {location}")
         write_csv(eni, ip, count, location,reverse_dns, key)
-    # Condition if CloudFront ES does not return any data, i.e could'nt find the IP in CloudFront ES Cluster
     else:
         geoip = get_geoip_details(ip)
         location = geo_ip_processor(geoip)
@@ -195,11 +198,6 @@ def geo_ip_processor(geoip):
             return location
 
 if __name__ == "__main__":
-    nat_combos = {}
-    ec2 = boto3.client("ec2", region_name='us-east-1')
-    network_interface = []
-    empty_ips = []
-    eni_list = []
-    nat_eni, nat_name = rh.get_all_nat()
+    nat_eni = get_all_nat()
     for n in nat_eni:
         enumerate_es_eni(n)
