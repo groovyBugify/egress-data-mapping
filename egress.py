@@ -12,12 +12,14 @@ from dns import resolver,reversename
 import csv
 import os.path
 
+# Enumerate All NAT Gateways and returns a list of ENI Ids
 def get_all_nat():
     client = boto3.client('ec2',region_name='us-east-1')
     response = client.describe_nat_gateways()
     nat_id = list(map(lambda x:x['NatGatewayAddresses'][0]['NetworkInterfaceId'],response['NatGateways']))
     return nat_id
 
+# Enumerate VPC Flow logs and pull data out
 def enumerate_es_eni(eni):
     print(f"[+]Enumerating ENI: {eni}")
     try:
@@ -72,6 +74,7 @@ def enumerate_es_eni(eni):
         print(f"[+]got exception at enumerate_es_eni: {em}")
         pass
 
+# Enumerate Cloudfront ELK Cluster and match IP adderess in c_ip
 def cloudfront_es(ip):
     #print(f"[+]IP Recieved at CF ES: {ip}")
     try:
@@ -109,7 +112,8 @@ def cloudfront_es(ip):
                     return key['key'], key['doc_count']                
     except Exception as em:
         print(f'[+]Exception at cloudfront_es: {em}')
-        
+
+# Final Processor
 def send_answer(eni, ip, count):
     key, doc_count = cloudfront_es(ip)
     if doc_count != None and key != None:
@@ -127,7 +131,7 @@ def send_answer(eni, ip, count):
         print(f"[+]The IP {ip} was invoked from {location}")
         write_csv(eni, ip, count, location, reverse_dns)
 
-# Write to all skipped packages to CSV 
+# Write results to CSV file in local directory
 def write_csv(eni, ip, count, location, revDns, paths=None):
     empty_list = []
     if paths == None:
@@ -195,6 +199,7 @@ def geo_ip_processor(geoip):
         else:
             location = geoip['city'] + ', ' + geoip['country']
             return location
+
 
 if __name__ == "__main__":
     nat_eni = get_all_nat()
