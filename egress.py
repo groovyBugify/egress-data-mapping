@@ -9,7 +9,6 @@ import re
 from urllib import request, parse
 import socket
 from dns import resolver,reversename
-import requestHandler as rh
 import csv
 import os.path
 
